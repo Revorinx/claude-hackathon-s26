@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#111111">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="manifest" href="/manifest.json">
+  <title>Camera Text Extractor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: monospace; background: #111; color: #eee;
+      min-height: 100vh; min-height: 100dvh;
+      padding: 16px; display: flex; flex-direction: column; align-items: center;
+    }
+    h1 { margin-bottom: 14px; font-size: 1.2rem; color: #7cf; }
+    h2 { margin-bottom: 8px; font-size: 0.85rem; color: #888; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    #consent {
+      width: 100%; max-width: 660px; background: #1a1500; border: 1px solid #a60;
+      border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;
+      font-size: 0.73rem; color: #f90; line-height: 1.5;
+    }
+
+    #camera-section {
+      width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+
+    .video-wrap {
+      position: relative; width: 100%; background: #000;
+      border: 2px solid #2a2a2a; border-radius: 8px; overflow: hidden;
+      aspect-ratio: 4/3;
+    }
+    video {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .cam-overlay {
+      position: absolute; inset: 0; pointer-events: none;
+      border: 2px solid rgba(119,204,255,0.25); border-radius: 6px;
+    }
+    /* Corner guides */
+    .cam-overlay::before, .cam-overlay::after {
+      content: ''; position: absolute; width: 28px; height: 28px;
+      border-color: #7cf; border-style: solid; border-width: 0;
+    }
+    .cam-overlay::before { top: 12px; left: 12px; border-top-width: 3px; border-left-width: 3px; border-radius: 2px 0 0 0; }
+    .cam-overlay::after  { bottom: 12px; right: 12px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 2px 0; }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 100%; }
+
+    button {
+      background: #1a1a2e; color: #7cf; border: 1px solid #7cf;
+      padding: 14px 22px; border-radius: 8px; cursor: pointer;
+      font-family: monospace; font-size: 0.9rem;
+      min-height: 48px; /* touch target */
+      transition: background 0.15s, color 0.15s;
+      flex: 1; max-width: 200px;
+    }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    #capture-btn {
+      background: #0c2; color: #111; border-color: #0c2;
+      font-weight: bold; font-size: 1rem; flex: 2; max-width: 300px;
+    }
+    #capture-btn:active { background: #0a0; }
+
+    .upload-hint { font-size: 0.75rem; color: #555; text-align: center; }
+    .upload-hint label { color: #7cf; cursor: pointer; text-decoration: underline; min-height: 44px; display: inline-flex; align-items: center; padding: 4px 8px; }
+
+    #preview-section {
+      width: 100%; max-width: 660px; display: none; flex-direction: column; align-items: center; gap: 14px;
+    }
+    #preview {
+      width: 100%; border: 2px solid #2a2a2a; border-radius: 8px;
+      object-fit: contain; max-height: 60vh;
+    }
+
+    #loading {
+      display: none; padding: 28px; text-align: center; color: #7cf; font-size: 0.9rem;
+    }
+    .spinner { display: inline-block; animation: spin 1s linear infinite; font-size: 1.6rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #result-section {
+      width: 100%; max-width: 660px; display: none; flex-direction: column; gap: 12px; margin-top: 4px;
+    }
+    #json-output {
+      background: #0a0a0a; border: 1px solid #222; border-radius: 8px;
+      padding: 16px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+      font-size: 0.8rem; line-height: 1.6; max-height: 45vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .jk { color: #7cf; }
+    .js { color: #5d5; }
+    .jn { color: #fa0; }
+    .jb { color: #d9d; }
+    .jx { color: #f77; }
+
+    .error-box {
+      width: 100%; max-width: 660px; display: none;
+      background: #200; border: 1px solid #f44; border-radius: 6px;
+      padding: 10px 14px; color: #f77; font-size: 0.82rem; margin-top: 8px;
+    }
+
+    /* Portrait-only: stack buttons full-width on small screens */
+    @media (max-width: 420px) {
+      button { max-width: none; }
+      #capture-btn { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Camera Text Extractor</h1>
+
+  <div id="consent">
+    Prototype only — images are sent to Claude AI. Do not photograph real patient data. Output is not medical advice.
+  </div>
+
+  <!-- Camera view -->
+  <div id="camera-section">
+    <div class="video-wrap">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="cam-overlay"></div>
+    </div>
+    <div class="btn-row">
+      <button id="capture-btn" onclick="capture()">Capture &amp; Extract</button>
+      <button id="flip-btn" onclick="switchCamera()">Flip</button>
+    </div>
+    <div class="upload-hint">
+      or <label for="file-input">choose / take a photo</label>
+      <!-- capture="environment" triggers native camera on iOS/Android -->
+      <input type="file" id="file-input" accept="image/*" capture="environment" style="display:none" onchange="handleFile(event)">
+    </div>
+  </div>
+
+  <!-- Captured image -->
+  <div id="preview-section">
+    <img id="preview" alt="Captured image">
+    <div class="btn-row">
+      <button onclick="retake()">Retake</button>
+    </div>
+  </div>
+
+  <div id="loading">
+    <span class="spinner">⟳</span>&nbsp; Analysing with Claude vision...
+  </div>
+
+  <div id="result-section">
+    <h2>Extracted JSON</h2>
+    <pre id="json-output"></pre>
+    <div class="btn-row">
+      <button onclick="downloadJSON()">Download JSON</button>
+      <button onclick="retake()">Capture Another</button>
+    </div>
+  </div>
+
+  <div id="error-box" class="error-box"></div>
+
+  <script>
+    let stream = null;
+    let facingMode = 'environment'; // back camera first on mobile
+    let lastJSON = null;
+
+    const video = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+    const flipBtn = document.getElementById('flip-btn');
+
+    async function startCamera() {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
+        });
+        video.srcObject = stream;
+      } catch (_) {
+        try {
+          // Fallback: any available camera
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          flipBtn.style.display = 'none'; // no flip if only one camera
+        } catch (e) {
+          flipBtn.style.display = 'none';
+          showError('Camera access denied. Use the "choose / take a photo" link below to upload instead.');
+        }
+      }
+    }
+
+    async function switchCamera() {
+      facingMode = facingMode === 'environment' ? 'user' : 'environment';
+      await startCamera();
+    }
+
+    function capture() {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) { showError('Camera not ready — try again.'); return; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+      canvas.toBlob(blob => processBlob(blob), 'image/jpeg', 0.92);
+    }
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (file) processBlob(file);
+      e.target.value = ''; // reset so same file can be re-selected
+    }
+
+    function processBlob(blob) {
+      const url = URL.createObjectURL(blob);
+      document.getElementById('preview').src = url;
+      show('preview');
+      show('loading');
+      sendToAPI(blob);
+    }
+
+    async function sendToAPI(blob) {
+      clearError();
+      const form = new FormData();
+      form.append('file', blob, 'capture.jpg');
+
+      try {
+        const res = await fetch('/api/extract', { method: 'POST', body: form });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`Server error ${res.status}: ${txt}`);
+        }
+        const data = await res.json();
+        lastJSON = data;
+        document.getElementById('json-output').innerHTML = highlight(JSON.stringify(data, null, 2));
+        hide('loading');
+        show('result');
+      } catch (err) {
+        hide('loading');
+        showError(err.message);
+      }
+    }
+
+    function retake() {
+      lastJSON = null;
+      hide('preview');
+      hide('result');
+      clearError();
+      show('camera');
+    }
+
+    function downloadJSON() {
+      if (!lastJSON) return;
+      const blob = new Blob([JSON.stringify(lastJSON, null, 2)], { type: 'application/json' });
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
+        download: `extracted_${Date.now()}.json`
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    const SECTIONS = { camera: 'camera-section', preview: 'preview-section', result: 'result-section', loading: 'loading' };
+    function show(id) {
+      const el = document.getElementById(SECTIONS[id] || id);
+      if (el) el.style.display = (id === 'loading') ? 'block' : 'flex';
+    }
+    function hide(id) {
+      const el = document.getElementById(SECTIONS[id] || id);
+      if (el) el.style.display = 'none';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-box');
+      el.textContent = '⚠ ' + msg;
+      el.style.display = 'block';
+    }
+    function clearError() { document.getElementById('error-box').style.display = 'none'; }
+
+    function highlight(json) {
+      return json.replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, m => {
+        if (/^"/.test(m)) return `<span class="${/:$/.test(m) ? 'jk' : 'js'}">${m}</span>`;
+        if (/true|false/.test(m)) return `<span class="jb">${m}</span>`;
+        if (/null/.test(m)) return `<span class="jx">${m}</span>`;
+        return `<span class="jn">${m}</span>`;
+      });
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>

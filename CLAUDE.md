@@ -6,6 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A healthcare follow-up app that uses a **camera** to capture after-visit summary documents and visual health items (medications, symptoms). Images are processed via OCR for text and Claude's vision API for non-text recognition (pill identification, wound/symptom assessment). Claude interprets the combined data to drive reminders and follow-up actions. **No hospital API integrations** — backend is Python, camera capture is the sole data entry point.
 
+## Running the App
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Set your Anthropic API key
+export ANTHROPIC_API_KEY=sk-...   # Windows: set ANTHROPIC_API_KEY=sk-...
+
+# Start the server
+python app.py
+# → open http://localhost:8000
+```
+
 ## Tech Stack Decisions
 
 - **Backend**: Python (OCR, Claude API vision + text, business logic)
