@@ -1,5 +1,5 @@
 [phases.install]
-cmds = ["npm install --include=optional --cache /tmp/npm-cache"]
+cmds = ["npm install --include=dev --include=optional --cache /tmp/npm-cache"]
 
 [phases.build]
 cmds = ["npm run build"]
