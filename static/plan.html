@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <title>Today — Post-Discharge Companion</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #1c1917; }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: rgba(255,255,255,0.95); backdrop-filter: blur(4px); border-bottom: 1px solid #e7e5e4; }
+    .nav-inner { max-width: 100%; display: flex; justify-content: space-around; gap: 4px; padding: 8px; }
+    a.nav-link { display: flex; align-items: center; justify-content: center; min-height: 48px; min-width: 64px; flex: 1; max-width: 120px; border-radius: 12px; text-decoration: none; font-size: 0.9rem; font-weight: 600; color: #57534e; transition: background 0.15s; }
+    a.nav-link:hover { background: #fafaf9; }
+    a.nav-link.active { background: #f0fdfa; color: #115e59; }
+    /* Plan layout */
+    .plan-layout { display: flex; height: 100dvh; padding-top: 64px; }
+    /* Sidebar */
+    .sidebar { width: 200px; min-width: 160px; flex-shrink: 0; background: #0f766e; display: flex; flex-direction: column; padding: 24px 16px; overflow-y: auto; }
+    .sidebar-date { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #5eead4; }
+    .sidebar-title { margin-top: 12px; font-size: 2rem; font-weight: 700; line-height: 1.2; color: #fff; }
+    .sidebar-diagnosis { margin-top: 12px; font-size: 0.95rem; line-height: 1.4; color: #ccfbf1; }
+    .progress-box { margin-top: 20px; background: #0d9488; border-radius: 16px; padding: 16px; text-align: center; }
+    .progress-num { font-size: 2.5rem; font-weight: 700; color: #fff; line-height: 1; }
+    .progress-total { font-size: 1.2rem; font-weight: 700; color: #5eead4; }
+    .progress-label { margin-top: 6px; font-size: 0.75rem; color: #5eead4; }
+    .progress-bar-bg { margin-top: 10px; height: 6px; border-radius: 9999px; background: #0f766e; overflow: hidden; }
+    .progress-bar { height: 100%; border-radius: 9999px; background: #fff; transition: width 0.5s; }
+    .tab-nav { margin-top: auto; padding-top: 24px; display: flex; flex-direction: column; gap: 6px; }
+    .tab-btn { position: relative; border: none; cursor: pointer; border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 0.9rem; font-weight: 600; transition: background 0.15s; }
+    .tab-btn.active { background: #fff; color: #0f766e; }
+    .tab-btn:not(.active) { background: transparent; color: #ccfbf1; }
+    .tab-btn:not(.active):hover { background: #0d9488; }
+    .tab-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #fbbf24; }
+    /* Content */
+    .content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .reminder-banner { margin: 12px 12px 0; display: flex; align-items: flex-start; justify-content: space-between; border: 1px solid #99f6e4; background: #f0fdfa; border-radius: 16px; padding: 14px; }
+    .reminder-inner { display: flex; align-items: flex-start; gap: 10px; }
+    .reminder-label { font-size: 0.875rem; font-weight: 600; color: #134e4a; }
+    .reminder-med { margin-top: 2px; font-size: 0.875rem; color: #115e59; }
+    .reminder-time { margin-top: 2px; font-size: 0.75rem; color: #0d9488; }
+    .reminder-dismiss { background: none; border: none; cursor: pointer; color: #0d9488; font-size: 1rem; padding: 4px; }
+    .reminder-dismiss:hover { color: #134e4a; }
+    .tab-panel { padding: 12px; flex: 1; }
+    /* Cards */
+    .card { border: 1px solid #e7e5e4; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .section-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #a8a29e; margin-bottom: 10px; }
+    /* Med schedule grid */
+    .med-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .med-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #ccfbf1; background: #f0fdfa; border-radius: 16px; padding: 16px 10px; }
+    .med-time { font-size: 1.25rem; font-weight: 800; color: #0f766e; }
+    .med-label { margin-top: 6px; text-align: center; font-size: 0.875rem; color: #57534e; line-height: 1.3; }
+    /* Checklist grid */
+    .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .check-item { display: flex; flex-direction: column; border: 1px solid #e7e5e4; background: #fff; border-radius: 16px; padding: 16px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .check-item input[type=checkbox] { width: 24px; height: 24px; accent-color: #0f766e; margin-top: 12px; align-self: flex-end; cursor: pointer; }
+    .check-icon { font-size: 2rem; }
+    .check-label { margin-top: 8px; font-size: 0.875rem; color: #292524; line-height: 1.35; flex: 1; }
+    .check-label.done { text-decoration: line-through; color: #a8a29e; }
+    /* SMS form */
+    .sms-card { border: 1px solid #e7e5e4; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .sms-title { font-size: 0.875rem; font-weight: 600; color: #1c1917; }
+    .sms-desc { margin-top: 4px; font-size: 0.75rem; color: #78716c; }
+    .sms-row { margin-top: 10px; display: flex; gap: 8px; }
+    .sms-input { flex: 1; min-width: 0; border: 1px solid #d6d3d1; border-radius: 12px; padding: 8px 12px; font-size: 0.875rem; outline: none; }
+    .sms-input:focus { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
+    .sms-btn { flex-shrink: 0; background: #0f766e; color: #fff; border: none; border-radius: 12px; padding: 8px 14px; font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+    .sms-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .sms-err { margin-top: 6px; font-size: 0.75rem; color: #dc2626; }
+    .sms-success { border: 1px solid #99f6e4; background: #f0fdfa; border-radius: 16px; padding: 14px; font-size: 0.875rem; color: #134e4a; }
+    /* Alerts */
+    .alert-section { border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .alert-section.emergency { border: 1px solid #fca5a5; background: #fef2f2; }
+    .alert-section.urgent { border: 1px solid #fcd34d; background: #fffbeb; }
+    .alert-section.watch { border: 1px solid #e7e5e4; background: #fafaf9; }
+    .alert-header { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    .alert-header.emergency { color: #b91c1c; }
+    .alert-header.urgent { color: #b45309; }
+    .alert-header.watch { color: #78716c; }
+    .alert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .alert-item { display: flex; flex-direction: column; gap: 8px; border-radius: 12px; padding: 12px; }
+    .alert-item.emergency { border: 1px solid #fecaca; background: #fff; }
+    .alert-item.urgent { border: 1px solid #fcd34d; background: #fff; }
+    .alert-item.watch { border: 1px solid #f5f5f4; background: #fff; }
+    .alert-emoji { font-size: 1.5rem; }
+    .alert-text.emergency { font-size: 0.875rem; color: #7f1d1d; line-height: 1.35; }
+    .alert-text.urgent { font-size: 0.875rem; color: #451a03; line-height: 1.35; }
+    .alert-text.watch { font-size: 0.875rem; color: #44403c; line-height: 1.35; }
+    /* Follow-ups */
+    .followup-item { display: flex; flex-direction: column; gap: 4px; border: 1px solid #f5f5f4; background: #fafaf9; border-radius: 12px; padding: 14px; }
+    .followup-type { font-size: 0.875rem; font-weight: 600; color: #1c1917; }
+    .followup-when { font-size: 0.875rem; color: #78716c; }
+    /* Appointment */
+    .appt-when { border: 1px solid #ccfbf1; background: #f0fdfa; border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .appt-when-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #0d9488; }
+    .appt-when-time { margin-top: 6px; font-size: 1.5rem; font-weight: 700; color: #115e59; }
+    .appt-when-who { margin-top: 4px; font-size: 1rem; color: #0f766e; }
+    .appt-when-loc { margin-top: 2px; font-size: 0.875rem; color: #0d9488; }
+    .bring-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .bring-item, .mention-item { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #f5f5f4; background: #fafaf9; border-radius: 12px; padding: 10px; font-size: 0.875rem; color: #292524; }
+    .bring-icon { color: #0d9488; flex-shrink: 0; margin-top: 1px; }
+    /* Details */
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .detail-do { font-size: 0.75rem; font-weight: 700; color: #0d9488; margin-top: 12px; }
+    .detail-avoid { font-size: 0.75rem; font-weight: 700; color: #dc2626; margin-top: 12px; }
+    .detail-list { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+    .detail-item { font-size: 0.875rem; color: #44403c; }
+    /* Empty state */
+    .empty-state { max-width: 512px; margin: 0 auto; padding: 80px 20px 32px; display: flex; flex-direction: column; min-height: 100dvh; }
+    .btn-primary { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 16px; background: #0f766e; color: #fff; font-size: 1rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; padding: 0 20px; }
+    .disclaimer { margin-top: auto; padding-top: 24px; text-align: center; font-size: 0.75rem; color: #78716c; line-height: 1.5; }
+    @media (max-width: 480px) {
+      .sidebar { width: 140px; min-width: 120px; padding: 16px 10px; }
+      .sidebar-title { font-size: 1.5rem; }
+      .tab-btn { font-size: 0.8rem; padding: 8px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/upload" class="nav-link">Upload</a>
+      <a href="/plan" class="nav-link active">Today</a>
+      <a href="/check-in" class="nav-link">Chat</a>
+    </div>
+  </nav>
+
+  <!-- Empty state (shown when no plan) -->
+  <div id="empty-state" class="empty-state" style="display:none;">
+    <h1 style="font-size:1.5rem;font-weight:600;color:#1c1917;">Today</h1>
+    <p style="margin-top:12px;color:#57534e;">No care plan yet. Add discharge instructions to see your daily plan.</p>
+    <a href="/upload" class="btn-primary" style="margin-top:32px;">Go to upload</a>
+    <p class="disclaimer">This demo organizes instructions you provide and is not a substitute for professional medical advice, diagnosis, or treatment. For emergencies, call 911.</p>
+  </div>
+
+  <!-- Main plan layout -->
+  <div id="plan-layout" class="plan-layout" style="display:none;">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <p class="sidebar-date" id="today-label"></p>
+      <h1 class="sidebar-title">Your Plan</h1>
+      <p class="sidebar-diagnosis" id="diagnosis-text"></p>
+      <div id="progress-box" class="progress-box" style="display:none;">
+        <span class="progress-num" id="progress-done">0</span><span class="progress-total" id="progress-total">/0</span>
+        <p class="progress-label">tasks done</p>
+        <div class="progress-bar-bg"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+      </div>
+      <div class="tab-nav">
+        <button class="tab-btn active" id="tab-today" onclick="setTab('today')">Today</button>
+        <button class="tab-btn" id="tab-alerts" onclick="setTab('alerts')">Alerts <span id="alerts-dot" class="tab-dot" style="display:none;"></span></button>
+        <button class="tab-btn" id="tab-appointment" onclick="setTab('appointment')">Appointment</button>
+        <button class="tab-btn" id="tab-details" onclick="setTab('details')">Details</button>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Reminder banner -->
+      <div id="reminder-banner" class="reminder-banner" style="display:none;">
+        <div class="reminder-inner">
+          <span style="font-size:1.25rem;margin-top:2px;">💊</span>
+          <div>
+            <p class="reminder-label">Medication reminder</p>
+            <p class="reminder-med" id="reminder-med-text"></p>
+            <p class="reminder-time" id="reminder-time-text"></p>
+          </div>
+        </div>
+        <button class="reminder-dismiss" onclick="dismissReminder()" aria-label="Dismiss">✕</button>
+      </div>
+
+      <!-- Tab: Today -->
+      <div id="panel-today" class="tab-panel">
+        <div id="med-schedule-section" style="display:none;margin-bottom:16px;">
+          <p class="section-label">Medication Times</p>
+          <div class="med-grid" id="med-grid"></div>
+        </div>
+        <div id="sms-section" style="margin-bottom:16px;"></div>
+        <div id="checklist-section" style="display:none;">
+          <p class="section-label">Checklist</p>
+          <div class="check-grid" id="check-grid"></div>
+        </div>
+      </div>
+
+      <!-- Tab: Alerts -->
+      <div id="panel-alerts" class="tab-panel" style="display:none;">
+        <div id="alerts-content"></div>
+      </div>
+
+      <!-- Tab: Appointment -->
+      <div id="panel-appointment" class="tab-panel" style="display:none;">
+        <div id="appointment-content">
+          <p style="font-size:1rem;color:#a8a29e;">Preparing your visit guide…</p>
+        </div>
+      </div>
+
+      <!-- Tab: Details -->
+      <div id="panel-details" class="tab-panel" style="display:none;">
+        <div id="details-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PLAN_KEY = 'pdc-care-plan-v1';
+    let plan = null;
+    let activeTab = 'today';
+    let activeReminder = null;
+    let dismissedTimes = new Set();
+    let scheduledSids = [];
+    let reminderTimeouts = [];
+
+    function saveCarePlan(p) {
+      localStorage.setItem(PLAN_KEY, JSON.stringify(p));
+    }
+
+    function todayLabel() {
+      return new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function parseTimeToday(timeLocal) {
+      const m = timeLocal.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!m) return null;
+      let h = parseInt(m[1]), mn = parseInt(m[2]);
+      const mer = (m[3] || '').toUpperCase();
+      if (mer === 'PM' && h !== 12) h += 12;
+      if (mer === 'AM' && h === 12) h = 0;
+      const now = new Date();
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, mn, 0);
+    }
+
+    function setTab(tab) {
+      activeTab = tab;
+      ['today','alerts','appointment','details'].forEach(t => {
+        document.getElementById('panel-' + t).style.display = t === tab ? 'block' : 'none';
+        document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+      });
+      // Hide dot on alerts when viewing it
+      if (tab === 'alerts') document.getElementById('alerts-dot').style.display = 'none';
+    }
+
+    function updateProgress() {
+      if (!plan) return;
+      const items = plan.todays_checklist || [];
+      const done = items.filter(i => i.done).length;
+      const total = items.length;
+      const box = document.getElementById('progress-box');
+      if (total > 0) {
+        box.style.display = 'block';
+        document.getElementById('progress-done').textContent = done;
+        document.getElementById('progress-total').textContent = '/' + total;
+        document.getElementById('progress-bar').style.width = Math.min(100, (done / total) * 100) + '%';
+      } else {
+        box.style.display = 'none';
+      }
+    }
+
+    function renderMedSchedule() {
+      const schedule = plan.medication_schedule_today || [];
+      const section = document.getElementById('med-schedule-section');
+      const grid = document.getElementById('med-grid');
+      if (!schedule.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      grid.innerHTML = schedule.map(m =>
+        `<div class="med-tile">
+          <span class="med-time">${esc(m.time_local)}</span>
+          <span class="med-label">${esc(m.label)}</span>
+        </div>`
+      ).join('');
+    }
+
+    function renderSmsSection() {
+      const section = document.getElementById('sms-section');
+      if (scheduledSids.length > 0) {
+        const phone = localStorage.getItem('sms_phone') || '';
+        section.innerHTML = `<div class="sms-success">
+          <p style="font-weight:600;">You're registered! 🎉</p>
+          <p style="margin-top:4px;">A confirmation text was sent${phone ? ' to ' + esc(phone) : ''}. You'll get a reminder at each medication time today.</p>
+        </div>`;
+        return;
+      }
+      const schedule = plan.medication_schedule_today && plan.medication_schedule_today.length > 0
+        ? plan.medication_schedule_today
+        : (plan.medications || []).map(m => ({ time_local: 'as scheduled', label: m.name + (m.dose ? ' ' + m.dose : '') + ' — ' + (m.frequency_text || '') }));
+      section.innerHTML = `<div class="sms-card">
+        <p class="sms-title">Get SMS reminders</p>
+        <p class="sms-desc">We'll text you at each medication time — no app needed.</p>
+        <div class="sms-row">
+          <input type="tel" class="sms-input" id="sms-phone" placeholder="+1 555 000 0000">
+          <button class="sms-btn" id="sms-btn" onclick="submitSms()">Enable</button>
+        </div>
+        <p class="sms-err" id="sms-err" style="display:none;"></p>
+      </div>`;
+      section._schedule = schedule;
+    }
+
+    async function submitSms() {
+      const phone = document.getElementById('sms-phone').value.trim();
+      const btn = document.getElementById('sms-btn');
+      const err = document.getElementById('sms-err');
+      if (!phone) { err.textContent = 'Enter a phone number'; err.style.display = 'block'; return; }
+      btn.disabled = true; btn.textContent = 'Scheduling…'; err.style.display = 'none';
+      const schedule = document.getElementById('sms-section')._schedule || [];
+      try {
+        const res = await fetch('/api/schedule-reminders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, schedule }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.error || 'Failed');
+        scheduledSids = data.sids || [];
+        localStorage.setItem('reminder_sids', JSON.stringify(scheduledSids));
+        localStorage.setItem('sms_phone', phone);
+        renderSmsSection();
+      } catch (e) {
+        btn.disabled = false; btn.textContent = 'Enable';
+        err.textContent = e.message || 'Something went wrong';
+        err.style.display = 'block';
+      }
+    }
+
+    function renderChecklist() {
+      const items = plan.todays_checklist || [];
+      const section = document.getElementById('checklist-section');
+      const grid = document.getElementById('check-grid');
+      if (!items.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      const icons = { medication:'💊', activity:'🚶', diet:'🥗', follow_up:'📅', education:'📖', other:'✔️' };
+      grid.innerHTML = items.map(item =>
+        `<label class="check-item" data-id="${esc(item.id)}">
+          <span class="check-icon">${icons[item.category] || '✔️'}</span>
+          <span class="check-label ${item.done ? 'done' : ''}">${esc(item.label)}</span>
+          <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleCheck('${esc(item.id)}', this.checked)">
+        </label>`
+      ).join('');
+    }
+
+    function toggleCheck(id, checked) {
+      plan = {
+        ...plan,
+        todays_checklist: plan.todays_checklist.map(item =>
+          item.id === id ? { ...item, done: checked } : item
+        ),
+      };
+      saveCarePlan(plan);
+      updateProgress();
+      // Update label style
+      const label = document.querySelector(`.check-item[data-id="${id}"] .check-label`);
+      if (label) label.classList.toggle('done', checked);
+    }
+
+    function renderAlerts() {
+      const flags = plan.red_flags || [];
+      const followUps = plan.follow_ups || [];
+      const emergency = flags.filter(f => f.severity_hint === 'emergency');
+      const urgent = flags.filter(f => f.severity_hint === 'urgent');
+      const watch = flags.filter(f => !f.severity_hint || !['emergency','urgent'].includes(f.severity_hint));
+      let html = '';
+      if (emergency.length) {
+        html += `<div class="alert-section emergency">
+          <p class="alert-header emergency">🚨 Call 911</p>
+          <div class="alert-grid">${emergency.map(f =>
+            `<div class="alert-item emergency"><span class="alert-emoji">🚨</span><span class="alert-text emergency">${esc(f.text)}</span></div>`
+          ).join('')}</div>
+        </div>`;
+      }
+      if (urgent.length) {
+        html += `<div class="alert-section urgent">
+          <p class="alert-header urgent">⚠️ Urgent — Go to ER or Urgent Care</p>
+          <div class="alert-grid">${urgent.map(f =>
+            `<div class="alert-item urgent"><span class="alert-emoji">⚠️</span><span class="alert-text urgent">${esc(f.text)}</span></div>`
+          ).join('')}</div>
+        </div>`;
+      }
+      if (watch.length) {
+        html += `<div class="alert-section watch">
+          <p class="alert-header watch">ℹ️ Monitor &amp; Contact Doctor</p>
+          <div class="alert-grid">${watch.map(f =>
+            `<div class="alert-item watch"><span class="alert-emoji">ℹ️</span><span class="alert-text watch">${esc(f.text)}</span></div>`
+          ).join('')}</div>
+        </div>`;
+      }
+      if (followUps.length) {
+        html += `<div class="card">
+          <p class="section-label">📅 Follow-ups</p>
+          <div class="alert-grid">${followUps.map(f =>
+            `<div class="followup-item"><span class="followup-type">${esc(f.type)}</span><span class="followup-when">${esc(f.within_text)}</span></div>`
+          ).join('')}</div>
+        </div>`;
+      }
+      document.getElementById('alerts-content').innerHTML = html || '<p style="color:#a8a29e;font-size:0.875rem;">No alerts found in your discharge instructions.</p>';
+      // Show dot if there are alerts
+      if (flags.length > 0) document.getElementById('alerts-dot').style.display = activeTab !== 'alerts' ? 'block' : 'none';
+    }
+
+    async function loadVisitPrep() {
+      const followUps = plan.follow_ups || [];
+      const container = document.getElementById('appointment-content');
+      if (!followUps.length) {
+        container.innerHTML = '<p style="font-size:0.875rem;color:#a8a29e;">No follow-up appointments found in your discharge instructions.</p>';
+        return;
+      }
+      try {
+        const res = await fetch('/api/visit-prep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ carePlan: plan }),
+        });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        let html = `<div class="appt-when">
+          <p class="appt-when-label">When &amp; Who</p>
+          <p class="appt-when-time">${esc(data.when || '')}</p>
+          <p class="appt-when-who">${esc(data.with_whom || '')}</p>
+          ${data.location ? `<p class="appt-when-loc">${esc(data.location)}</p>` : ''}
+        </div>`;
+        if (data.bring && data.bring.length) {
+          html += `<div class="card" style="margin-bottom:12px;">
+            <p class="section-label">What to Bring</p>
+            <div class="bring-grid">${data.bring.map(item =>
+              `<div class="bring-item"><span class="bring-icon">✓</span>${esc(item)}</div>`
+            ).join('')}</div>
+          </div>`;
+        }
+        if (data.mention && data.mention.length) {
+          html += `<div class="card">
+            <p class="section-label">What to Mention</p>
+            <div style="display:flex;flex-direction:column;gap:8px;">${data.mention.map(item =>
+              `<div class="mention-item"><span class="bring-icon">→</span>${esc(item)}</div>`
+            ).join('')}</div>
+          </div>`;
+        }
+        container.innerHTML = html;
+      } catch {
+        container.innerHTML = '<p style="font-size:0.875rem;color:#a8a29e;">Could not load visit guide. Check your API key and try refreshing.</p>';
+      }
+    }
+
+    function renderDetails() {
+      const act = plan.activity || { restrictions: [], allowances: [] };
+      const diet = plan.diet || { do: [], avoid: [] };
+      const html = `<div class="card" style="margin-bottom:12px;">
+          <p class="section-label">Summary</p>
+          <p style="font-size:0.875rem;line-height:1.6;color:#44403c;">${esc(plan.plain_language_summary || '')}</p>
+        </div>
+        <div class="detail-grid">
+          <div class="card">
+            <p class="section-label">🚶 Activity</p>
+            <p class="detail-do">Do</p>
+            <div class="detail-list">${(act.allowances || []).map(x => `<p class="detail-item">• ${esc(x)}</p>`).join('') || '<p class="detail-item" style="color:#a8a29e;">None specified</p>'}</div>
+            <p class="detail-avoid">Avoid</p>
+            <div class="detail-list">${(act.restrictions || []).map(x => `<p class="detail-item">• ${esc(x)}</p>`).join('') || '<p class="detail-item" style="color:#a8a29e;">None specified</p>'}</div>
+          </div>
+          <div class="card">
+            <p class="section-label">🥗 Diet</p>
+            <p class="detail-do">Do</p>
+            <div class="detail-list">${(diet.do || []).map(x => `<p class="detail-item">• ${esc(x)}</p>`).join('') || '<p class="detail-item" style="color:#a8a29e;">None specified</p>'}</div>
+            <p class="detail-avoid">Avoid</p>
+            <div class="detail-list">${(diet.avoid || []).map(x => `<p class="detail-item">• ${esc(x)}</p>`).join('') || '<p class="detail-item" style="color:#a8a29e;">None specified</p>'}</div>
+          </div>
+        </div>
+        <p style="margin-top:24px;text-align:center;font-size:0.75rem;color:#78716c;line-height:1.5;">This demo organizes instructions you provide and is not a substitute for professional medical advice. For emergencies, call 911.</p>`;
+      document.getElementById('details-content').innerHTML = html;
+    }
+
+    // ── Reminders ─────────────────────────────────────────────────────────────
+    async function requestNotificationPermission() {
+      if (!('Notification' in window)) return false;
+      if (Notification.permission === 'granted') return true;
+      if (Notification.permission === 'denied') return false;
+      return (await Notification.requestPermission()) === 'granted';
+    }
+
+    function getActiveReminder(schedule, windowMin = 15) {
+      const now = new Date();
+      for (const item of schedule) {
+        const fireAt = parseTimeToday(item.time_local);
+        if (!fireAt) continue;
+        const diffMin = (fireAt - now) / 60000;
+        if (diffMin >= -windowMin && diffMin <= windowMin) return item;
+      }
+      return null;
+    }
+
+    function scheduleReminders(schedule) {
+      reminderTimeouts.forEach(clearTimeout);
+      reminderTimeouts = [];
+      const now = Date.now();
+      for (const item of schedule) {
+        const fireAt = parseTimeToday(item.time_local);
+        if (!fireAt) continue;
+        const delay = fireAt - now;
+        if (delay < 0) continue;
+        reminderTimeouts.push(setTimeout(() => {
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification('Time for your medication', { body: item.label });
+          }
+          showReminder(item);
+        }, delay));
+      }
+    }
+
+    function showReminder(item) {
+      if (dismissedTimes.has(item.time_local)) return;
+      activeReminder = item;
+      document.getElementById('reminder-med-text').textContent = item.label;
+      document.getElementById('reminder-time-text').textContent = item.time_local;
+      document.getElementById('reminder-banner').style.display = 'flex';
+    }
+
+    function dismissReminder() {
+      if (activeReminder) dismissedTimes.add(activeReminder.time_local);
+      activeReminder = null;
+      document.getElementById('reminder-banner').style.display = 'none';
+    }
+
+    function checkBanner() {
+      const schedule = plan && plan.medication_schedule_today;
+      if (!schedule || !schedule.length) return;
+      const rem = getActiveReminder(schedule);
+      if (rem && !dismissedTimes.has(rem.time_local)) showReminder(rem);
+    }
+
+    function esc(str) {
+      if (str == null) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    function init() {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (!raw) {
+        document.getElementById('empty-state').style.display = 'flex';
+        return;
+      }
+      try { plan = JSON.parse(raw); } catch { document.getElementById('empty-state').style.display = 'flex'; return; }
+
+      const savedSids = localStorage.getItem('reminder_sids');
+      if (savedSids) try { scheduledSids = JSON.parse(savedSids); } catch {}
+
+      document.getElementById('plan-layout').style.display = 'flex';
+      document.getElementById('today-label').textContent = todayLabel();
+      document.getElementById('diagnosis-text').textContent = plan.diagnosis_or_reason || '';
+
+      updateProgress();
+      renderMedSchedule();
+      renderSmsSection();
+      renderChecklist();
+      renderAlerts();
+      renderDetails();
+      loadVisitPrep();
+
+      const schedule = plan.medication_schedule_today || [];
+      if (schedule.length) {
+        requestNotificationPermission();
+        scheduleReminders(schedule);
+        checkBanner();
+        setInterval(checkBanner, 60000);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

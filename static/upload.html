@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.json">
+  <title>Upload — Post-Discharge Companion</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #1c1917; min-height: 100dvh; }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: rgba(255,255,255,0.95); backdrop-filter: blur(4px); border-bottom: 1px solid #e7e5e4; }
+    .nav-inner { max-width: 512px; margin: 0 auto; display: flex; justify-content: space-around; gap: 4px; padding: 8px; }
+    a.nav-link { display: flex; align-items: center; justify-content: center; min-height: 48px; min-width: 72px; flex: 1; border-radius: 12px; text-decoration: none; font-size: 1rem; font-weight: 600; color: #57534e; transition: background 0.15s; }
+    a.nav-link:hover { background: #fafaf9; }
+    a.nav-link.active { background: #f0fdfa; color: #115e59; }
+    .page { max-width: 512px; margin: 0 auto; padding: 80px 20px 32px; display: flex; flex-direction: column; min-height: 100dvh; }
+    h1 { font-size: 1.5rem; font-weight: 600; color: #1c1917; }
+    .btn { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 16px; font-size: 1rem; font-weight: 500; border: none; cursor: pointer; padding: 0 20px; transition: background 0.15s; width: 100%; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: #0f766e; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #115e59; }
+    .btn-teal { background: #f0fdfa; color: #115e59; border: 1px solid #99f6e4; }
+    .btn-teal:hover:not(:disabled) { background: #ccfbf1; }
+    .btn-secondary { background: #fff; color: #292524; border: 1px solid #e7e5e4; }
+    .btn-secondary:hover:not(:disabled) { background: #fafaf9; }
+    .btn-icon { background: #fff; color: #292524; border: 1px solid #e7e5e4; padding: 0 12px; border-radius: 12px; }
+    textarea { width: 100%; border: 1px solid #e7e5e4; border-radius: 16px; padding: 16px; font-size: 1rem; color: #1c1917; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06); outline: none; resize: vertical; font-family: inherit; }
+    textarea::placeholder { color: #a8a29e; }
+    textarea:focus { border-color: #0d9488; box-shadow: 0 0 0 4px rgba(13,148,136,0.1); }
+    .error { margin-top: 16px; background: #fffbeb; border-radius: 12px; padding: 12px 16px; font-size: 0.875rem; color: #451a03; }
+    .loading-msg { margin-top: 16px; font-size: 0.875rem; color: #78716c; }
+    .file-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+    .file-item { display: flex; align-items: center; gap: 12px; border: 1px solid #e7e5e4; border-radius: 16px; background: #fff; padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .file-item .file-icon { font-size: 1.25rem; flex-shrink: 0; }
+    .file-item .file-name { flex: 1; font-size: 0.875rem; color: #292524; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-item .remove-btn { flex-shrink: 0; background: none; border: none; cursor: pointer; color: #a8a29e; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .file-item .remove-btn:hover { background: #f5f5f4; color: #44403c; }
+    .disclaimer { margin-top: auto; padding-top: 24px; text-align: center; font-size: 0.75rem; color: #78716c; line-height: 1.5; }
+    /* Camera modal */
+    #camera-modal { display: none; position: fixed; inset: 0; z-index: 100; background: #000; flex-direction: column; }
+    #camera-modal.open { display: flex; }
+    .cam-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+    .cam-btn { background: none; border: none; color: #fff; font-size: 0.875rem; font-weight: 500; padding: 8px 12px; cursor: pointer; border-radius: 8px; }
+    .cam-btn:hover { background: rgba(255,255,255,0.1); }
+    .cam-title { color: #fff; font-size: 0.875rem; font-weight: 600; }
+    .cam-video-wrap { position: relative; flex: 1; overflow: hidden; }
+    #cam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cam-guide { position: absolute; inset: 24px; border: 2px solid rgba(255,255,255,0.2); border-radius: 16px; pointer-events: none; }
+    .cam-guide::before, .cam-guide::after, .cam-corner-bl, .cam-corner-br { content: ''; position: absolute; width: 32px; height: 32px; border-style: solid; border-color: #fff; }
+    .cam-guide::before { top: -2px; left: -2px; border-width: 4px 0 0 4px; border-radius: 12px 0 0 0; }
+    .cam-guide::after { top: -2px; right: -2px; border-width: 4px 4px 0 0; border-radius: 0 12px 0 0; }
+    .cam-corner-bl { bottom: -2px; left: -2px; border-width: 0 0 4px 4px; border-radius: 0 0 0 12px; }
+    .cam-corner-br { bottom: -2px; right: -2px; border-width: 0 4px 4px 0; border-radius: 0 0 12px 0; }
+    .cam-error { position: absolute; top: 16px; left: 16px; right: 16px; background: rgba(127,29,29,0.8); color: #fca5a5; padding: 12px 16px; border-radius: 12px; font-size: 0.875rem; }
+    .cam-footer { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 24px 40px; }
+    .cam-capture { width: 80px; height: 80px; border-radius: 50%; border: 4px solid #fff; background: rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.1s; }
+    .cam-capture:active { transform: scale(0.95); }
+    .cam-capture:disabled { opacity: 0.4; cursor: not-allowed; }
+    .cam-hint { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/upload" class="nav-link active">Upload</a>
+      <a href="/plan" class="nav-link">Today</a>
+      <a href="/check-in" class="nav-link">Chat</a>
+    </div>
+  </nav>
+
+  <!-- Camera modal -->
+  <div id="camera-modal">
+    <div class="cam-header">
+      <button class="cam-btn" onclick="closeCamera()">✕ Cancel</button>
+      <span class="cam-title">Camera</span>
+      <button class="cam-btn" onclick="flipCamera()">⇄ Flip</button>
+    </div>
+    <div class="cam-video-wrap">
+      <video id="cam-video" autoplay playsinline muted></video>
+      <div class="cam-guide">
+        <div class="cam-corner-bl"></div>
+        <div class="cam-corner-br"></div>
+      </div>
+      <div id="cam-error" class="cam-error" style="display:none;"></div>
+    </div>
+    <div class="cam-footer">
+      <button id="cam-capture-btn" class="cam-capture" onclick="capturePhoto()" disabled></button>
+      <p class="cam-hint">Tap to capture your discharge document</p>
+    </div>
+  </div>
+
+  <!-- Upload view -->
+  <div id="upload-view" class="page">
+    <h1>Add discharge instructions</h1>
+    <p style="margin-top:8px;font-size:0.875rem;color:#57534e;">Paste text, take a photo, or upload images and PDFs from your discharge paperwork.</p>
+
+    <label for="raw-text" style="display:block;margin-top:24px;font-size:0.875rem;font-weight:500;color:#292524;">Discharge text</label>
+    <textarea id="raw-text" rows="10" placeholder="Paste discharge instructions here…" style="margin-top:8px;"></textarea>
+
+    <div id="upload-error" class="error" style="display:none;"></div>
+    <p id="upload-loading-msg" class="loading-msg" style="display:none;"></p>
+
+    <input type="file" id="file-input" accept="image/*,application/pdf" multiple style="display:none;" onchange="onFileChange(event)">
+
+    <div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;">
+      <button class="btn btn-primary" onclick="extractText()">Extract &amp; review in Today</button>
+      <button class="btn btn-teal" onclick="openCamera()">📷 Use camera</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">🖼️ Upload images or PDFs</button>
+      <button class="btn btn-secondary" onclick="loadSample()">Load sample discharge</button>
+    </div>
+    <p class="disclaimer">This demo organizes instructions you provide and is not a substitute for professional medical advice, diagnosis, or treatment. For emergencies, call 911.</p>
+  </div>
+
+  <!-- Review view -->
+  <div id="review-view" class="page" style="display:none;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn-icon btn" onclick="backToUpload()" style="width:36px;height:36px;min-height:36px;flex-shrink:0;" aria-label="Back">←</button>
+      <h1>Files to process</h1>
+    </div>
+    <p id="file-count" style="margin-top:4px;font-size:0.875rem;color:#78716c;"></p>
+
+    <div id="file-list" class="file-list"></div>
+
+    <div id="review-error" class="error" style="display:none;"></div>
+    <p id="review-loading-msg" class="loading-msg" style="display:none;"></p>
+
+    <div style="margin-top:auto;padding-top:32px;display:flex;flex-direction:column;gap:12px;">
+      <button id="process-btn" class="btn btn-primary" onclick="processFiles()">Extract &amp; review in Today</button>
+      <button id="add-more-btn" class="btn btn-secondary" onclick="document.getElementById('file-input').click()">🖼️ Add more files</button>
+      <button id="camera-btn-review" class="btn btn-teal" onclick="openCamera()">📷 Take a photo</button>
+    </div>
+    <p class="disclaimer">This demo organizes instructions you provide and is not a substitute for professional medical advice, diagnosis, or treatment. For emergencies, call 911.</p>
+  </div>
+
+  <script>
+    const PLAN_KEY = 'pdc-care-plan-v1';
+    let files = [];
+    let loading = false;
+    let camStream = null;
+    let facingMode = 'environment';
+
+    function saveCarePlan(plan) {
+      localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+      localStorage.removeItem('sms_registered');
+      localStorage.removeItem('sms_phone');
+      localStorage.removeItem('reminder_sids');
+    }
+
+    function setLoading(on, msg) {
+      loading = on;
+      const allBtns = document.querySelectorAll('button, .btn');
+      allBtns.forEach(b => { if (b.id !== 'cam-capture-btn') b.disabled = on; });
+      const uploadMsg = document.getElementById('upload-loading-msg');
+      const reviewMsg = document.getElementById('review-loading-msg');
+      if (uploadMsg) { uploadMsg.textContent = msg || ''; uploadMsg.style.display = (on && msg) ? 'block' : 'none'; }
+      if (reviewMsg) { reviewMsg.textContent = msg || ''; reviewMsg.style.display = (on && msg) ? 'block' : 'none'; }
+    }
+
+    function showError(viewId, msg) {
+      const el = document.getElementById(viewId + '-error');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    function fileIcon(file) {
+      if (file.type === 'application/pdf') return '📄';
+      if (file.type.startsWith('image/')) return '🖼️';
+      return '📎';
+    }
+
+    function renderFileList() {
+      const list = document.getElementById('file-list');
+      const count = document.getElementById('file-count');
+      count.textContent = files.length + ' file' + (files.length !== 1 ? 's' : '') + ' selected';
+      list.innerHTML = '';
+      files.forEach((file, i) => {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerHTML = `<span class="file-icon">${fileIcon(file)}</span>
+          <span class="file-name">${file.name}</span>
+          <button class="remove-btn" onclick="removeFile(${i})" aria-label="Remove ${file.name}">✕</button>`;
+        list.appendChild(item);
+      });
+    }
+
+    function addFiles(incoming) {
+      if (!incoming.length) return;
+      const names = new Set(files.map(f => f.name));
+      const deduped = Array.from(incoming).filter(f => !names.has(f.name));
+      files = [...files, ...deduped];
+      if (files.length > 0) switchView('review');
+      renderFileList();
+    }
+
+    function removeFile(i) {
+      files = files.filter((_, idx) => idx !== i);
+      if (files.length === 0) switchView('upload');
+      else renderFileList();
+    }
+
+    function backToUpload() {
+      files = [];
+      switchView('upload');
+    }
+
+    function switchView(view) {
+      document.getElementById('upload-view').style.display = view === 'upload' ? 'flex' : 'none';
+      document.getElementById('review-view').style.display = view === 'review' ? 'flex' : 'none';
+    }
+
+    function onFileChange(e) {
+      addFiles(Array.from(e.target.files || []));
+      e.target.value = '';
+    }
+
+    async function extractFile(file) {
+      const isPdf = file.type === 'application/pdf';
+      const form = new FormData();
+      if (isPdf) form.append('pdf', file, file.name);
+      else form.append('image', file, file.name);
+      const res = await fetch(isPdf ? '/api/extract-pdf' : '/api/extract-image', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || 'Extraction failed');
+      if (!data.raw_text) throw new Error('No text found in file');
+      return data.raw_text;
+    }
+
+    async function extractText() {
+      showError('upload', '');
+      const raw = document.getElementById('raw-text').value.trim();
+      if (!raw) { showError('upload', 'Paste your discharge text first.'); return; }
+      setLoading(true, 'Extracting…');
+      try {
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_text: raw }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.hint ? data.error + ' — ' + data.hint : data.detail || data.error || 'Failed');
+        saveCarePlan(data.care_plan);
+        window.location.href = '/plan';
+      } catch (e) {
+        showError('upload', e.message || 'Something went wrong');
+      } finally {
+        setLoading(false, '');
+      }
+    }
+
+    async function processFiles() {
+      showError('review', '');
+      setLoading(true, '');
+      const parts = [];
+      try {
+        for (let i = 0; i < files.length; i++) {
+          setLoading(true, 'Reading file ' + (i + 1) + ' of ' + files.length + '…');
+          parts.push(await extractFile(files[i]));
+        }
+        setLoading(true, 'Building your care plan…');
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_text: parts.join('\n\n---\n\n') }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.hint ? data.error + ' — ' + data.hint : data.detail || data.error || 'Failed');
+        saveCarePlan(data.care_plan);
+        window.location.href = '/plan';
+      } catch (e) {
+        showError('review', e.message || 'Something went wrong');
+      } finally {
+        setLoading(false, '');
+      }
+    }
+
+    async function loadSample() {
+      showError('upload', '');
+      setLoading(true, 'Loading sample…');
+      try {
+        const res = await fetch('/api/sample-care-plan');
+        if (!res.ok) throw new Error('Could not load sample');
+        saveCarePlan(await res.json());
+        window.location.href = '/plan';
+      } catch (e) {
+        showError('upload', e.message || 'Failed to load sample');
+      } finally {
+        setLoading(false, '');
+      }
+    }
+
+    // ── Camera ─────────────────────────────────────────────────────────────────
+    async function startCamera(facing) {
+      const video = document.getElementById('cam-video');
+      const captureBtn = document.getElementById('cam-capture-btn');
+      const errEl = document.getElementById('cam-error');
+      if (camStream) camStream.getTracks().forEach(t => t.stop());
+      captureBtn.disabled = true;
+      errEl.style.display = 'none';
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false,
+        });
+        video.srcObject = camStream;
+        video.onloadedmetadata = () => { captureBtn.disabled = false; };
+      } catch {
+        try {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = camStream;
+          video.onloadedmetadata = () => { captureBtn.disabled = false; };
+        } catch {
+          errEl.textContent = 'Camera access denied. Use the file upload option instead.';
+          errEl.style.display = 'block';
+        }
+      }
+    }
+
+    function openCamera() {
+      document.getElementById('camera-modal').classList.add('open');
+      startCamera(facingMode);
+    }
+
+    function closeCamera() {
+      document.getElementById('camera-modal').classList.remove('open');
+      if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+    }
+
+    async function flipCamera() {
+      facingMode = facingMode === 'environment' ? 'user' : 'environment';
+      await startCamera(facingMode);
+    }
+
+    function capturePhoto() {
+      const video = document.getElementById('cam-video');
+      if (!video.videoWidth) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        closeCamera();
+        const file = new File([blob], 'capture-' + Date.now() + '.jpg', { type: blob.type });
+        addFiles([file]);
+      }, 'image/jpeg', 0.92);
+    }
+  </script>
+</body>
+</html>
