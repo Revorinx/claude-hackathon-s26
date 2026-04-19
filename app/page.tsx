@@ -16,9 +16,9 @@ const FEATURES = [
   },
   {
     href: "/check-in",
-    icon: "🩺",
-    title: "Check-in",
-    description: "Log symptoms and get escalation guidance",
+    icon: "💬",
+    title: "Ask AI",
+    description: "Chat with an AI about your recovery and medications",
   },
 ];
 
