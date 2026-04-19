@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera Text Extractor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #111; color: #eee; min-height: 100vh; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    h1 { margin-bottom: 16px; font-size: 1.3rem; color: #7cf; }
+    h2 { margin-bottom: 8px; font-size: 0.9rem; color: #888; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    #consent {
+      width: 100%; max-width: 660px; background: #1a1500; border: 1px solid #a60;
+      border-radius: 4px; padding: 10px 14px; margin-bottom: 18px;
+      font-size: 0.75rem; color: #f90; line-height: 1.5;
+    }
+
+    #camera-section {
+      width: 100%; max-width: 660px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    video {
+      width: 100%; border: 2px solid #2a2a2a; border-radius: 6px; background: #000;
+      aspect-ratio: 4/3; object-fit: cover;
+    }
+
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    button {
+      background: #1a1a2e; color: #7cf; border: 1px solid #7cf;
+      padding: 10px 22px; border-radius: 4px; cursor: pointer;
+      font-family: monospace; font-size: 0.9rem; transition: background 0.15s, color 0.15s;
+    }
+    button:hover:not(:disabled) { background: #7cf; color: #111; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    #capture-btn { background: #0c2; color: #111; border-color: #0c2; font-weight: bold; }
+    #capture-btn:hover:not(:disabled) { background: #0a0; border-color: #0a0; }
+
+    .upload-hint { font-size: 0.75rem; color: #555; }
+    .upload-hint label { color: #7cf; cursor: pointer; text-decoration: underline; }
+
+    #preview-section {
+      width: 100%; max-width: 660px; display: none; flex-direction: column; align-items: center; gap: 12px;
+    }
+    #preview { width: 100%; border: 2px solid #2a2a2a; border-radius: 6px; object-fit: contain; }
+
+    #loading {
+      display: none; padding: 24px; text-align: center; color: #7cf; font-size: 0.9rem;
+    }
+    .spinner { display: inline-block; animation: spin 1s linear infinite; font-size: 1.4rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #result-section {
+      width: 100%; max-width: 660px; display: none; flex-direction: column; gap: 10px; margin-top: 4px;
+    }
+    #json-output {
+      background: #0a0a0a; border: 1px solid #222; border-radius: 6px;
+      padding: 16px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+      font-size: 0.8rem; line-height: 1.6; max-height: 480px; overflow-y: auto;
+    }
+    .jk { color: #7cf; }
+    .js { color: #5d5; }
+    .jn { color: #fa0; }
+    .jb { color: #d9d; }
+    .jx { color: #f77; }
+
+    .error-box {
+      width: 100%; max-width: 660px; display: none;
+      background: #200; border: 1px solid #f44; border-radius: 4px;
+      padding: 10px 14px; color: #f77; font-size: 0.82rem; margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Camera Text Extractor</h1>
+
+  <div id="consent">
+    Prototype only — images are sent to Claude AI for processing. Do not photograph real patient data or sensitive documents. This tool is not a medical device and output is not clinical advice.
+  </div>
+
+  <!-- Camera view -->
+  <div id="camera-section">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="btn-row">
+      <button id="capture-btn" onclick="capture()">Capture &amp; Extract</button>
+      <button onclick="switchCamera()">Flip Camera</button>
+    </div>
+    <div class="upload-hint">
+      or <label for="file-input">upload an image file</label>
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(event)">
+    </div>
+  </div>
+
+  <!-- Preview + result -->
+  <div id="preview-section">
+    <img id="preview" alt="Captured image">
+    <div class="btn-row">
+      <button onclick="retake()">Retake</button>
+    </div>
+  </div>
+
+  <div id="loading">
+    <span class="spinner">⟳</span>&nbsp; Sending to Claude vision API...
+  </div>
+
+  <div id="result-section">
+    <h2>Extracted JSON</h2>
+    <pre id="json-output"></pre>
+    <div class="btn-row">
+      <button onclick="downloadJSON()">Download JSON</button>
+      <button onclick="retake()">Capture Another</button>
+    </div>
+  </div>
+
+  <div id="error-box" class="error-box"></div>
+
+  <script>
+    let stream = null;
+    let facingMode = 'environment';
+    let lastJSON = null;
+
+    const video = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+
+    async function startCamera() {
+      try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false
+        });
+        video.srcObject = stream;
+      } catch (_) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+        } catch (e) {
+          showError('Camera access denied or unavailable. Use the file upload option instead.');
+        }
+      }
+    }
+
+    async function switchCamera() {
+      facingMode = facingMode === 'environment' ? 'user' : 'environment';
+      await startCamera();
+    }
+
+    function capture() {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) { showError('Camera not ready yet — try again.'); return; }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+      canvas.toBlob(blob => processBlob(blob), 'image/jpeg', 0.92);
+    }
+
+    function handleFile(e) {
+      const file = e.target.files[0];
+      if (file) processBlob(file);
+    }
+
+    function processBlob(blob) {
+      const url = URL.createObjectURL(blob);
+      document.getElementById('preview').src = url;
+      show('preview');
+      show('loading');
+      sendToAPI(blob);
+    }
+
+    async function sendToAPI(blob) {
+      clearError();
+      const form = new FormData();
+      form.append('file', blob, 'capture.jpg');
+
+      try {
+        const res = await fetch('/api/extract', { method: 'POST', body: form });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`Server error ${res.status}: ${txt}`);
+        }
+        const data = await res.json();
+        lastJSON = data;
+        document.getElementById('json-output').innerHTML = highlight(JSON.stringify(data, null, 2));
+        hide('loading');
+        show('result');
+      } catch (err) {
+        hide('loading');
+        showError(err.message);
+      }
+    }
+
+    function retake() {
+      lastJSON = null;
+      hide('preview');
+      hide('result');
+      clearError();
+      show('camera');
+    }
+
+    function downloadJSON() {
+      if (!lastJSON) return;
+      const blob = new Blob([JSON.stringify(lastJSON, null, 2)], { type: 'application/json' });
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob),
+        download: `extracted_${Date.now()}.json`
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function show(id) { document.getElementById(id + (id === 'camera' ? '-section' : id === 'preview' ? '-section' : id === 'result' ? '-section' : '')).style.display = 'flex'; }
+    function hide(id) { document.getElementById(id + (id === 'camera' ? '-section' : id === 'preview' ? '-section' : id === 'result' ? '-section' : '')).style.display = 'none'; }
+
+    function showError(msg) {
+      const el = document.getElementById('error-box');
+      el.textContent = '⚠ ' + msg;
+      el.style.display = 'block';
+    }
+    function clearError() { document.getElementById('error-box').style.display = 'none'; }
+
+    function highlight(json) {
+      return json.replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, m => {
+        if (/^"/.test(m)) return `<span class="${/:$/.test(m) ? 'jk' : 'js'}">${m}</span>`;
+        if (/true|false/.test(m)) return `<span class="jb">${m}</span>`;
+        if (/null/.test(m)) return `<span class="jx">${m}</span>`;
+        return `<span class="jn">${m}</span>`;
+      });
+    }
+
+    // Cleaner show/hide — fix the id mapping
+    function show(id) {
+      const el = document.getElementById({camera:'camera-section', preview:'preview-section', result:'result-section', loading:'loading'}[id] || id);
+      if (el) el.style.display = id === 'loading' ? 'block' : 'flex';
+    }
+    function hide(id) {
+      const el = document.getElementById({camera:'camera-section', preview:'preview-section', result:'result-section', loading:'loading'}[id] || id);
+      if (el) el.style.display = 'none';
+    }
+
+    startCamera();
+  </script>
+</body>
+</html>
