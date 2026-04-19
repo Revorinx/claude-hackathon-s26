@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import type { CarePlan } from "@/lib/types/care-plan";
 import { loadCarePlan } from "@/lib/care-plan-storage";
 import { Disclaimer } from "@/components/Disclaimer";
@@ -129,7 +130,19 @@ export default function ChatPage() {
                     : "border border-stone-200 bg-white text-stone-800 shadow-sm"
                 }`}
               >
-                {msg.content || (
+                {msg.role === "assistant" && msg.content ? (
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      ul: ({ children }) => <ul className="ml-4 list-disc space-y-0.5">{children}</ul>,
+                      ol: ({ children }) => <ol className="ml-4 list-decimal space-y-0.5">{children}</ol>,
+                      li: ({ children }) => <li>{children}</li>,
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : msg.content ? msg.content : (
                   <span className="inline-flex gap-1">
                     <span className="animate-bounce">·</span>
                     <span className="animate-bounce [animation-delay:0.15s]">·</span>
