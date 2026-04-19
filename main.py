@@ -22,6 +22,9 @@ SYSTEM_PROMPT = (
     "- If no text is found, return {\"raw_text\": \"\", \"note\": \"No text detected\"}"
 )
 
+@app.get("/")
+async def read_index():
+    return FileResponse('index.html')
 
 @app.post("/api/extract")
 async def extract(file: UploadFile = File(...)):
